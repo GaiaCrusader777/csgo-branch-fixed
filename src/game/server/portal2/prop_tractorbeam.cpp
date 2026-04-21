@@ -60,12 +60,12 @@ LINK_ENTITY_TO_CLASS( prop_tractor_beam, CPropTractorBeamProjector )
 
 IMPLEMENT_SERVERCLASS_ST( CPropTractorBeamProjector, DT_PropTractorBeamProjector )
 
+	SendPropExclude( "DT_BaseProjector", "m_bEnabled" ),
 	SendPropFloat( SENDINFO( m_flLinearForce ) ),
-	SendPropBool( SENDINFO( m_bNoEmitterParticles ) ),
-	//SendPropBool( SENDINFO( bDisableAutoReprojection ) ),
-
 	SendPropVector( SENDINFO( m_vEndPos ) ),
-
+	SendPropBool( SENDINFO( m_bEnabled ) ),
+	SendPropBool( SENDINFO( m_bNoEmitterParticles ) ),
+	
 END_SEND_TABLE()
 
 CPropTractorBeamProjector::CPropTractorBeamProjector()

@@ -4,6 +4,7 @@
 #include "npc_portal_turret_floor.h"
 #include "particle_parse.h"
 #include "prop_tractorbeam.h"
+#include "physics_saverestore.h"
 
 BEGIN_DATADESC( CProjectedTractorBeamEntity )
 
@@ -22,6 +23,8 @@ LINK_ENTITY_TO_CLASS( projected_tractor_beam_entity, CProjectedTractorBeamEntity
 //-------------------------------------------------//
 
 BEGIN_DATADESC( CTrigger_TractorBeam )
+	DEFINE_PHYSPTR( m_pController ),
+
 	DEFINE_SOUNDPATCH( m_sndPlayerInBeam ),
 
 	DEFINE_FIELD( m_gravityScale, FIELD_FLOAT ),

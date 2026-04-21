@@ -38,23 +38,29 @@ void C_ProjectedTractorBeamEntity::GetProjectionExtents( Vector &outMins, Vector
 void C_ProjectedTractorBeamEntity::OnProjected( void )
 {
 	BaseClass::OnProjected();
-	if ( m_hTractorBeamTrigger )
+
+	C_Trigger_TractorBeam *pTrigger = m_hTractorBeamTrigger;
+	if ( pTrigger )
 	{
-		m_hTractorBeamTrigger->SetPredictionEligible( GetPredictionEligible() );
+		pTrigger->SetPredictionEligible( GetPredictionEligible() );
 
 		if ( IsPlayerSimulated() )
 		{
 			if ( GetSimulatingPlayer() )
-				m_hTractorBeamTrigger->SetPlayerSimulated( GetSimulatingPlayer() );
+				pTrigger->SetPlayerSimulated( GetSimulatingPlayer() );
 			else
-				m_hTractorBeamTrigger->SetPlayerSimulated( NULL );
+				pTrigger->SetPlayerSimulated( NULL );
 		}
 		else
 		{
-			m_hTractorBeamTrigger->UnsetPlayerSimulated();
+			pTrigger->UnsetPlayerSimulated();
 		}
 		
-		m_hTractorBeamTrigger->UpdateBeam( GetStartPoint(), GetEndPoint(), m_hTractorBeamTrigger->GetLinearForce() );
+		float flForce = pTrigger->GetLinearForce();
+		if ( pTrigger->IsReversed() )
+			flForce = -flForce;
+
+		pTrigger->UpdateBeam( GetStartPoint(), GetEndPoint(), flForce );
 	}
 }
 
@@ -76,8 +82,8 @@ IMPLEMENT_CLIENTCLASS_DT( C_Trigger_TractorBeam, DT_Trigger_TractorBeam, CTrigge
 	RecvPropFloat( RECVINFO( m_flRadius ) ),
 	
 	RecvPropQAngles( RECVINFO( m_linearForceAngles ) ),
-	RecvPropVector( RECVINFO( m_vStart ) ),
-	RecvPropVector( RECVINFO( m_vEnd ) ),
+	RecvPropVector( RECVINFO( m_vStart ), 0, &C_Trigger_TractorBeam::RecvProxy_Start ),
+	RecvPropVector( RECVINFO( m_vEnd ), 0, &C_Trigger_TractorBeam::RecvProxy_End ),
 	
 	RecvPropBool( RECVINFO( m_bDisabled ) ),
 	RecvPropBool( RECVINFO( m_bReversed ) ),
@@ -251,6 +257,7 @@ void C_Trigger_TractorBeam::DrawColumn( IMaterial *pMaterial, Vector &vecStart, 
 	Vector &vecXAxis, Vector &vecYAxis, float flRadius, float flAlpha, bool bPinchIn, bool bPinchOut, float flTextureOffset )
 {
 	CMatRenderContextPtr pRenderContext( materials );
+	pRenderContext->Bind( pMaterial, GetClientRenderable() );
 	IMesh* pMesh = pRenderContext->GetDynamicMesh( false, NULL, NULL, pMaterial );
 
 	CMeshBuilder meshBuilder;
@@ -484,26 +491,29 @@ void C_Trigger_TractorBeam::OnDataChanged( DataUpdateType_t updateType )
 	BaseClass::OnDataChanged( updateType );
 	if ( updateType == DATA_UPDATE_DATATABLE_CHANGED )
 	{
-		if ( !m_bRecreateParticles )
-			return;
-		m_bRecreateParticles = false;
+		if ( m_bRecreateParticles )
+		{
+			m_bRecreateParticles = false;
+			CreateParticles();
+		}
 	}
 	else
 	{
-		AddEffects( EF_NOFLASHLIGHT );
-		if ( !m_pController )
+		if ( physenv && !m_pController )
 		{
 			m_pController = physenv->CreateMotionController( this );
 
-			C_BaseProjectedEntity *pOwner = (C_BaseProjectedEntity*)GetOwnerEntity();
-
-			if (m_bReversed)
-				m_linearForce = -m_linearForce;
+			C_ProjectedTractorBeamEntity *pOwner = (C_ProjectedTractorBeamEntity*)GetOwnerEntity();
 			
-			UpdateBeam( pOwner->GetStartPoint(), pOwner->GetEndPoint(), m_linearForce );
+			float flForce = m_linearForce;
+			if (m_bReversed)
+				flForce = -m_linearForce;
+			
+			UpdateBeam( pOwner->GetStartPoint(), pOwner->GetEndPoint(), flForce );
+			m_hProxyEntity = pOwner;
 		}
+		CreateParticles();
 	}
-	CreateParticles();
 }
 
 C_BasePlayer *C_Trigger_TractorBeam::GetPredictionOwner( void )
@@ -580,12 +590,11 @@ void C_Trigger_TractorBeam::RestoreToToolRecordedState( KeyValues *pKV )
 	m_pMaterial3 = materials->FindMaterial("effects/tractor_beam3", 0, 0, 0);
 }
 
-// NOTE: This was copied from CPSCollisionEntity::UpdatePartitionListEntry, but this should work.
 void C_Trigger_TractorBeam::UpdatePartitionListEntry()
 {
 	partition->RemoveAndInsert( 
-		PARTITION_CLIENT_RESPONSIVE_EDICTS | PARTITION_CLIENT_NON_STATIC_EDICTS | PARTITION_CLIENT_TRIGGER_ENTITIES | PARTITION_CLIENT_IK_ATTACHMENT,  // remove
-		PARTITION_CLIENT_SOLID_EDICTS | PARTITION_CLIENT_STATIC_PROPS,  // add
+		PARTITION_CLIENT_RESPONSIVE_EDICTS | PARTITION_CLIENT_NON_STATIC_EDICTS | PARTITION_CLIENT_SOLID_EDICTS,  // remove
+		PARTITION_CLIENT_TRIGGER_ENTITIES,  // add
 		CollisionProp()->GetPartitionHandle() );
 }
 
@@ -622,4 +631,53 @@ bool C_Trigger_TractorBeam::HasAngularLimit( void )
 bool C_Trigger_TractorBeam::HasAirDensity( void )
 {
 	return m_addAirDensity != 0.0;
+}
+
+void C_Trigger_TractorBeam::RecvProxy_Start( const CRecvProxyData *pData, void *pStruct, void *pOut )
+{	
+	C_Trigger_TractorBeam *pTractorBeam = static_cast<C_Trigger_TractorBeam*>( pStruct );
+
+	Vector vStart = Vector( pData->m_Value.m_Vector[0], pData->m_Value.m_Vector[1], pData->m_Value.m_Vector[2] );
+
+	if (pTractorBeam->m_vStart != vStart )
+	{
+		pTractorBeam->m_vStart = vStart;
+		pTractorBeam->m_bRecreateParticles = true;
+		pTractorBeam->m_flStartTime = gpGlobals->curtime;
+	}
+}
+
+void C_Trigger_TractorBeam::RecvProxy_End( const CRecvProxyData *pData, void *pStruct, void *pOut )
+{	
+	C_Trigger_TractorBeam *pTractorBeam = static_cast<C_Trigger_TractorBeam*>( pStruct );
+	Vector vEnd = Vector( pData->m_Value.m_Vector[0], pData->m_Value.m_Vector[1], pData->m_Value.m_Vector[2] );
+
+	if ( pTractorBeam->m_vEnd != vEnd )
+	{
+		Vector vOldDiff = pTractorBeam->m_vEnd - pTractorBeam->m_vStart;
+		float fOldLength = VectorNormalize( vOldDiff );
+
+		Vector vNewDiff = vEnd - pTractorBeam->m_vStart;
+		float fNewLength = VectorNormalize( vNewDiff );
+
+		if ( fabs( vOldDiff.x - vNewDiff.x ) > 0.1 || fabs( vOldDiff.y - vNewDiff.y ) > 0.1 || fabs( vOldDiff.z - vNewDiff.z ) > 0.1 )
+		{
+			pTractorBeam->m_flStartTime = gpGlobals->curtime;
+		}
+		else if ( fNewLength > 0.0 )
+		{
+			pTractorBeam->m_flStartTime = gpGlobals->curtime
+				- ((((((gpGlobals->curtime
+				- pTractorBeam->m_flStartTime)
+				+ (gpGlobals->curtime
+				- pTractorBeam->m_flStartTime))
+				+ 0.0)
+				* fOldLength)
+				/ fNewLength)
+				* 0.5);
+		}
+
+		pTractorBeam->m_vEnd = vEnd;
+		pTractorBeam->m_bRecreateParticles = true;
+	}
 }
