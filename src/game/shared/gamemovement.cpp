@@ -18,7 +18,7 @@
 #endif
 
 #if defined(HL2_EP3) && !defined(CLIENT_DLL)
-	//#include "ep3/weapon_icegun.h"
+	#include "ep3/weapon_icegun.h"
 #endif
 
 #if (PREDICTION_ERROR_CHECK_LEVEL > 0) && (PREDICTION_ERROR_CHECK_STACKS_FOR_MISSING > 0)
@@ -4229,7 +4229,7 @@ void CGameMovement::CategorizePosition( void )
 		float flStandableZ = 0.7;
 
 #if defined(HL2_EP3) && !defined(CLIENT_DLL)
-		if ( false)//Icegun_IsPlayerIceSurfing() )
+		if (Icegun_IsPlayerIceSurfing())
 		{
 			flStandableZ = 0;
 		}

@@ -1,5 +1,7 @@
 $Include "$SRCDIR\vpc_scripts\source_lowest_base.vpc"
 
+$Conditional DISABLE_FTOL3_OVERRIDE "1"
+
 $Configuration
 {
 	$General

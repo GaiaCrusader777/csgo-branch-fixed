@@ -30,6 +30,10 @@
 #include "SoundEmitterSystem/isoundemittersystembase.h"
 #include "npc_headcrab.h"
 
+#ifdef HL2_EP3
+#include "weapon_teleport.h"
+#endif
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 

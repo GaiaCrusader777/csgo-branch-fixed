@@ -325,7 +325,8 @@ void DrawFastSphere( CMeshBuilder &meshBuilder, const Vector &center, float radi
 
 static ConVar	sv_surface_testshape("surface_testshape", "0", 0, "Use a test shape instead of the hydra");
 static ConVar	sv_surface_center("surface_center", "0", FCVAR_ARCHIVE, "Adjust render center");
-static ConVar	sv_surface_fountain("surface_fountain", "0", FCVAR_ARCHIVE, "Turns on settings for rendering the fountain");
+//static ConVar	sv_surface_fountain("surface_fountain", "0", FCVAR_ARCHIVE, "Turns on settings for rendering the fountain"); no archiving this is really annoying
+static ConVar	sv_surface_fountain("surface_fountain", "0", 0, "Turns on settings for rendering the fountain");
 
 /*
 static ConVar	sv_blr_cubewidth( "blr_cubewidth", "0.8", 0, "Set cubewidth (coarseness of the mesh)" );
@@ -538,7 +539,8 @@ int C_NPC_Surface::DrawModel(int flags, const RenderableInstance_t& instance)
 
 	Surface_Draw(GetClientRenderable(), center, m_pMaterial, 6.5f);// 4.0f);
 	//}
-
+	
+	//old surface rendering code, we can now use the new c_surfacerender
 #if 0//!defined( _X360 ) // X360TBD: Enable blobulator for EP3
 
 	if (sv_surface_wireframe.GetBool())

@@ -731,7 +731,7 @@ void CLennardJonesForce::addParticleForce(PhysParticle* a, PhysParticle* b, floa
 
 void CLennardJonesForce::AddForces(IPhysicsObject** pObject, int nObjects, float flRadius, float flStrength, Vector* pForces)
 {
-	int nParticles = nObjects;
+	//int nParticles = nObjects;
 
 	// hack: copy cvars into settings so it can be edited live
 	m_fInteractionRadius = lj_InteractionRadius.GetFloat();
@@ -771,6 +771,8 @@ void CLennardJonesForce::AddForces(IPhysicsObject** pObject, int nObjects, float
 		m_pPhysTiler->insertParticle(particle);
 	}
 
+	m_pPhysTiler->beginIteration();
+
 	m_pPhysTiler->processTiles();
 
 
@@ -778,13 +780,19 @@ void CLennardJonesForce::AddForces(IPhysicsObject** pObject, int nObjects, float
 	float nearNeighborInteractionRadius = 2.3f;
 	float nearNeighborInteractionRadiusSq = nearNeighborInteractionRadius * nearNeighborInteractionRadius;
 
-	PhysParticleCache* pCache = m_pPhysTiler->getParticleCache();
+	//PhysParticleCache* pCache = m_pPhysTiler->getParticleCache();
 	//PhysParticleCache* pCache = PhysParticleCacheFactory::factory->getCache();
 
 	// Calculate number of near neighbors for each particle
-	for (int i = 0; i < nParticles; i++)
+	/*for (int i = 0; i < nParticles; i++)
 	{
 		PhysParticle* b1 = &(imp_particles_sa[i]);
+
+
+		//PhysParticle** neigbours;
+		//int numNeighbours;
+
+		//PhysParticle* p1 = m_pPhysTiler->getNextParticleAndNeighbors(&neigbours, &numNeighbours);
 
 		PhysParticleAndDist* node = pCache->get(b1);
 
@@ -801,10 +809,35 @@ void CLennardJonesForce::AddForces(IPhysicsObject** pObject, int nObjects, float
 
 			node++;
 		}
+	}*/
+
+	PhysParticle** neigbours;
+	int numNeighbours;
+
+	PhysParticle* p1 = m_pPhysTiler->getNextParticleAndNeighbors(&neigbours, &numNeighbours);
+
+	while (p1 != NULL)
+	{
+		for (int j = 0; j < numNeighbours; j++)
+		{
+			PhysParticle* b2 = neigbours[j];
+			PhysParticle* b1 = p1;
+
+			float distSq = (b2->center - b1->center).dot(b2->center - b1->center);
+
+			// Compare addresses of the two particles. This makes sure we apply a force only once between a pair of particles.
+			if (b1 < b2 && distSq < nearNeighborInteractionRadiusSq)
+			{
+
+				b1->neighbor_count++;
+				b2->neighbor_count++;
+			}
+		}
+		p1 = m_pPhysTiler->getNextParticleAndNeighbors(&neigbours, &numNeighbours);
 	}
 
 	// Calculate forces on particles due to other particles
-	for (int i = 0; i < nParticles; i++)
+	/*for (int i = 0; i < nParticles; i++)
 	{
 		PhysParticle* b1 = &(imp_particles_sa[i]);
 
@@ -822,7 +855,31 @@ void CLennardJonesForce::AddForces(IPhysicsObject** pObject, int nObjects, float
 
 			node++;
 		}
+	}*/
+
+	m_pPhysTiler->endIteration();
+
+	m_pPhysTiler->beginIteration();
+
+	p1 = m_pPhysTiler->getNextParticleAndNeighbors(&neigbours, &numNeighbours);
+
+	while (p1 != NULL)
+	{
+		for (int j = 0; j < numNeighbours; j++)
+		{
+			PhysParticle* b2 = neigbours[j];
+			PhysParticle* b1 = p1;
+			// Compare addresses of the two particles. This makes sure we apply a force only once between a pair of particles.
+			if (b1 < b2)
+			{
+				float distSq = (b2->center - b1->center).dot(b2->center - b1->center);
+				addParticleForce(b1, b2, distSq, flStrength, timeStep);
+			}
+		}
+		p1 = m_pPhysTiler->getNextParticleAndNeighbors(&neigbours, &numNeighbours);
 	}
+	m_pPhysTiler->endIteration();
+
 	//PhysParticleCacheFactory::factory->returnCache(pCache);
 	m_pPhysTiler->endFrame();
 	PhysTilerFactory::factory->returnTiler(m_pPhysTiler);//[EP3T] should this be a class variable still?
@@ -1141,7 +1198,10 @@ void CNPC_BlobFountain::RunAI(void)
 		{
 			Vector pos;
 			m_pSpheres[i]->GetPosition(&pos, NULL);
-			m_vecSurfacePos[i] = pos;
+
+			//NDebugOverlay::Sphere(pos,vec3_angle,6,255,255,255,0,true,0.1f);
+
+			m_vecSurfacePos[i] = pos; //+ Vector(0,0,64);
 			m_flSurfaceR[i] = m_fRadius[i];
 		}
 #if 0
@@ -1740,8 +1800,6 @@ void CNPC_BlobArmTest::RunAI(void)
 	NetworkProp()->NetworkStateForceUpdate();
 }
 
-ConVar sv_surface_depth_strength("surface_depth_strength","0");
-
 int CNPC_BlobArmTest::MoveTowardsGoal(void)
 {
 	int i;
@@ -1772,7 +1830,7 @@ int CNPC_BlobArmTest::MoveTowardsGoal(void)
 
 	vecGoal = vecGoal + m_vecStart;
 	//if(!sv_surface_fix_weird_things.GetBool())
-	vecGoal.z -= sv_surface_depth_strength.GetFloat();//m_flRadius;
+	vecGoal.z = m_flRadius;
 
 	float tension = sv_surface_tension.GetFloat(); // * (1 - sqrt( fabs( sin( gpGlobals->curtime * 0.3 ) ) ) );
 
@@ -2076,8 +2134,8 @@ void CNPC_BlobDemoMonster::RunAI(void)
 
 	m_vecPrevGoal = m_vecPrevGoal * 0.8 + vecGoal * 0.2;
 
-	//if (!sv_surface_fix_weird_things.GetBool())
-	vecGoal.z -= sv_surface_depth_strength.GetFloat();//m_flRadius;
+
+	vecGoal.z = m_flRadius;//this is a bug with npc_surface, but removing it makes the arms break due to it needing some force downwards - theaperturecat
 	m_vecGoal = vecGoal;
 
 	if (!m_bDoArms)
